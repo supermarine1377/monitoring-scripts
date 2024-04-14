@@ -10,11 +10,19 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/supermarine1377/monitoring-scripts/go/check-http-status/internal/http_status"
+	"github.com/supermarine1377/monitoring-scripts/go/check-http-status/internal/log_files"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "check-http-status <URL>",
+	Use: `
+	check-http-status <URL> [flags]
+	Flags:
+		-i, --interval-seconds (int): Interval in seconds between regular HTTP requests to monitor the website. Default: 60
+		-clf, --create-log-file (bool): Create log file. Default: false
+	Example:
+		check-http-status https://example.com -i 30 -c
+	`,
 	Short: "Monitors the HTTP status code of a specified website at regular intervals.",
 	Long:  `Monitors the HTTP status code of a specified website at regular intervals.`,
 	// Uncomment the following line if your bare application
@@ -31,10 +39,23 @@ var rootCmd = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStderr(), err)
 			os.Exit(1)
 		}
-		m := http_status.NewMonitor(targetURL, intervalSeconds)
+
+		createLogFile, err := cmd.Flags().GetBool(CREATE_LOG_FILE)
+		if err != nil {
+			fmt.Fprintln(cmd.OutOrStderr(), err)
+			os.Exit(1)
+		}
+
+		logFile, err := log_files.New(createLogFile)
+		if err != nil {
+			fmt.Fprintln(cmd.OutOrStderr(), err)
+			os.Exit(1)
+		}
+
+		m := http_status.NewMonitorer(targetURL, intervalSeconds, logFile)
 		ctx := context.Background()
 
-		m.Writedown(ctx, os.Stdout)
+		m.Do(ctx)
 	},
 }
 
@@ -51,6 +72,10 @@ const INTERVAL_SECONDS = "interval-seconds"
 const INTERVAL_SECONDS_SHORTHAND = "i"
 const DEFAULT_INTERVAL_SECONDS = 60
 
+const CREATE_LOG_FILE = "create-log-file"
+const CREATE_LOG_FILE_SHORTHAND = "c"
+const DEFAULT_CREATE_LOG_FILE = false
+
 func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
@@ -62,9 +87,16 @@ func init() {
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	rootCmd.Flags().IntP(
-		"interval-seconds",
-		"i",
+		INTERVAL_SECONDS,
+		INTERVAL_SECONDS_SHORTHAND,
 		DEFAULT_INTERVAL_SECONDS,
 		"interval_seconds are interval time between monitoring HTTP requests.",
+	)
+
+	rootCmd.Flags().BoolP(
+		CREATE_LOG_FILE,
+		CREATE_LOG_FILE_SHORTHAND,
+		DEFAULT_CREATE_LOG_FILE,
+		"create a file to log results. In default log file won't be created. Log file name format: check-http-status_<timestamp>.log",
 	)
 }

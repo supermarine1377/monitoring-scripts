@@ -4,58 +4,67 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
+
+	"github.com/supermarine1377/monitoring-scripts/go/check-http-status/timeutil"
 )
 
-type Monitor struct {
+type Monitorer struct {
 	httpClient      *http.Client
 	targetURL       string
 	intervalSeconds int
+	files           []io.Writer
 }
 
-func NewMonitor(targetURL string, intervalSeconds int) *Monitor {
-	return &Monitor{
+func NewMonitorer(targetURL string, intervalSeconds int, files []io.Writer) *Monitorer {
+	return &Monitorer{
 		httpClient:      http.DefaultClient,
 		targetURL:       targetURL,
 		intervalSeconds: intervalSeconds,
+		files:           files,
 	}
 }
 
-// Writedown write down monitoring results on the given io.Writer
-func (m *Monitor) Writedown(ctx context.Context, w io.Writer) {
+func (m *Monitorer) Do(ctx context.Context) {
 Loop:
 	for {
 		select {
 		case <-ctx.Done():
 			break Loop
 		default:
-			code, err := m.statusCode(ctx)
+			r, err := m.result(ctx)
 			if err != nil {
-				errLog := []byte(err.Error() + "\n")
-				w.Write(errLog)
+				m.logln(err.Error())
 				continue
 			}
-			log := strconv.Itoa(code) + "\n"
-			w.Write([]byte(log))
-
+			m.logln(r)
 			time.Sleep(time.Second * time.Duration(m.intervalSeconds))
 		}
 	}
 }
 
-func (m *Monitor) statusCode(ctx context.Context) (int, error) {
+func (m *Monitorer) result(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
 		m.targetURL, nil,
 	)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
+	t := timeutil.NowStr()
 	res, err := m.httpClient.Do(req)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return res.StatusCode, nil
+
+	s := t + res.Status
+	return s, nil
+}
+
+func (m *Monitorer) logln(s string) {
+	b := []byte(s + "\n")
+	for _, f := range m.files {
+		f.Write(b)
+	}
 }
