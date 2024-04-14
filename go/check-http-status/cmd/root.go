@@ -19,7 +19,7 @@ var rootCmd = &cobra.Command{
 	check-http-status <URL> [flags]
 	Flags:
 		-i, --interval-seconds (int): Interval in seconds between regular HTTP requests to monitor the website. Default: 60
-		-clf, --create-log-file (bool): Create log file. Default: false
+		-c, --create-log-file (bool): Create log file. Default: false
 	Example:
 		check-http-status https://example.com -i 30 -c
 	`,
